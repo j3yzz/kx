@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -56,8 +57,8 @@ Exit codes:
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(*cobra.Command, []string) error {
-		if Global.Output != "table" && Global.Output != "json" {
-			return fmt.Errorf("invalid -o %q: want table or json", Global.Output)
+		if o := Global.Output; o != "table" && o != "json" && o != "env" {
+			return fmt.Errorf("invalid -o %q: want table, json or env (env: secrets only)", o)
 		}
 		return nil
 	},
@@ -68,13 +69,13 @@ func init() {
 	f.StringVarP(&Global.Namespace, "namespace", "n", "", "namespace (default: from kubeconfig)")
 	f.StringVar(&Global.Context, "context", "", "kubeconfig context")
 	f.StringVar(&Global.Kubeconfig, "kubeconfig", "", "path to kubeconfig")
-	f.StringVarP(&Global.Output, "output", "o", "table", "output format: table|json")
+	f.StringVarP(&Global.Output, "output", "o", "table", "output format: table|json (secrets also: env)")
 	f.BoolVar(&Global.NoColor, "no-color", false, "disable colored output")
 }
 
 // Execute runs the root command and exits with the matching code.
 func Execute() {
-	err := rootCmd.Execute()
+	err := rootCmd.ExecuteContext(context.Background())
 	if err == nil {
 		os.Exit(ExitOK)
 	}
