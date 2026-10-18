@@ -64,12 +64,18 @@ func TestNew(t *testing.T) {
 
 func TestAnnounce(t *testing.T) {
 	var b bytes.Buffer
-	(&Client{Context: "prod", Namespace: "x"}).Announce(&b)
+	(&Client{Context: "prod", Namespace: "x"}).Announce(&b, false, false)
 	if b.Len() != 0 {
 		t.Fatal("printed while on defaults")
 	}
-	(&Client{Context: "prod", Namespace: "x", NonDefault: true}).Announce(&b)
-	if !strings.Contains(b.String(), "prod") {
+	(&Client{Context: "prod", Namespace: "x", NonDefault: true}).Announce(&b, false, false)
+	if !strings.Contains(b.String(), "prod") || strings.Contains(b.String(), "\x1b") {
+		t.Fatalf("got %q", b.String())
+	}
+	b.Reset()
+	// prod: printed even on defaults, red when asked
+	(&Client{Context: "prod", Namespace: "x"}).Announce(&b, true, true)
+	if !strings.Contains(b.String(), "\x1b[1;31m") || !strings.Contains(b.String(), "context prod") {
 		t.Fatalf("got %q", b.String())
 	}
 }

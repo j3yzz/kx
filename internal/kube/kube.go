@@ -92,12 +92,18 @@ func Contexts(kubeconfig string) ([]string, error) {
 	return names, nil
 }
 
-// Announce prints "-> context/namespace" to w when kx is off the defaults.
+// Announce prints "-> context X, namespace Y" to w when kx is off the
+// defaults, or when always is set (prod contexts). red paints the line.
 // Use stderr so piped stdout stays machine-parseable.
-func (c *Client) Announce(w io.Writer) {
-	if c.NonDefault {
-		fmt.Fprintf(w, "-> context %s, namespace %s\n", c.Context, c.Namespace)
+func (c *Client) Announce(w io.Writer, always, red bool) {
+	if !c.NonDefault && !always {
+		return
 	}
+	line := fmt.Sprintf("-> context %s, namespace %s", c.Context, c.Namespace)
+	if red {
+		line = "\x1b[1;31m" + line + "\x1b[0m"
+	}
+	fmt.Fprintln(w, line)
 }
 
 // WrapError turns a 403 into an actionable error wrapping ErrDenied; others pass through.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/j3yzz/kx/internal/guard"
 	"github.com/j3yzz/kx/internal/kube"
 	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/spf13/cobra"
@@ -140,6 +141,13 @@ func newClientIn(defaultNS string) (*kube.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.Announce(os.Stderr)
+	prod := (&guard.Guard{ProdContexts: cfgCache.ProdContexts}).IsProd(c.Context)
+	c.Announce(os.Stderr, prod, prod && useColor(os.Stderr))
 	return c, nil
+}
+
+// useColor reports whether to color output on f: only on a terminal, and not
+// with --no-color or NO_COLOR set.
+func useColor(f *os.File) bool {
+	return !Global.NoColor && os.Getenv("NO_COLOR") == "" && kube.IsTTY(f)
 }
