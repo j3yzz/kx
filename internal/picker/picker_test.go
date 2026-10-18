@@ -1,8 +1,8 @@
 package picker
 
 import (
-	"reflect"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
