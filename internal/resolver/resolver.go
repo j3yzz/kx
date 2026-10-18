@@ -197,7 +197,7 @@ func PickPod(pods []corev1.Pod, pick bool, in io.Reader, out io.Writer) (*corev1
 		return &pods[i], nil
 	}
 	if c := components(pods); len(c) > 1 {
-		return nil, fmt.Errorf("app has several components (%s); use --pick to choose a pod or -l to narrow", strings.Join(c, ", "))
+		return nil, fmt.Errorf("app has several components (%s); narrow with -l app.kubernetes.io/name=<component> (exec also has --pick)", strings.Join(c, ", "))
 	}
 	var running *corev1.Pod
 	for i := range pods {
