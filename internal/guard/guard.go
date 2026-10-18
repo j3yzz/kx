@@ -20,6 +20,8 @@ const (
 	Reveal  Action = "reveal Secret values of"
 	CopyOut Action = "copy files out of"
 	CopyIn  Action = "copy files into"
+	Restart Action = "restart"
+	Scale   Action = "scale"
 )
 
 // ErrDeclined means the user answered no at the confirmation prompt.

@@ -502,3 +502,17 @@ func TestRunAll(t *testing.T) {
 		t.Fatalf("code %d err %q", code, errOut)
 	}
 }
+
+func TestRestartAndScale(t *testing.T) {
+	out, errOut, code := run(t, "", "scale", "alpine", "2")
+	if code != 0 || !strings.Contains(out, "from 1 to 2") {
+		t.Fatalf("scale: code %d out %q err %q", code, out, errOut)
+	}
+	t.Cleanup(func() { run(t, "", "scale", "alpine", "1") })
+	if out, errOut, code = run(t, "", "restart", "alpine"); code != 0 || !strings.Contains(out, "restarting Deployment/alpine") {
+		t.Fatalf("restart: code %d out %q err %q", code, out, errOut)
+	}
+	if _, _, code = run(t, "", "restart", "no-such-app"); code != 2 {
+		t.Fatalf("missing app: code %d", code)
+	}
+}
