@@ -2,6 +2,7 @@ package picker
 
 import (
 	"reflect"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -101,5 +102,25 @@ func TestView(t *testing.T) {
 	}
 	if v := strings.Join(many.view("x"), "\n"); !strings.Contains(v, "… 15 more") {
 		t.Errorf("overflow note missing:\n%s", v)
+	}
+}
+
+func TestViewScrollsWithCursor(t *testing.T) {
+	var items []string
+	for i := 0; i < 25; i++ {
+		items = append(items, fmt.Sprintf("app%02d", i))
+	}
+	m := &Model{Items: items}
+	for i := 0; i < 12; i++ {
+		m.Handle([]byte("\x1b[B"))
+	}
+	v := strings.Join(m.view("t"), "\n")
+	if !strings.Contains(v, "▶ app12") || !strings.Contains(v, "above") || strings.Contains(v, "app00\n") {
+		t.Fatalf("cursor row not visible:\n%s", v)
+	}
+	m.Handle([]byte("\x1b[A")) // wraps back up
+	m.Cursor = 0
+	if v = strings.Join(m.view("t"), "\n"); !strings.Contains(v, "▶ app00") || !strings.Contains(v, "15 more") {
+		t.Fatalf("top of list:\n%s", v)
 	}
 }

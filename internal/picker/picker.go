@@ -140,20 +140,28 @@ func (m *Model) move(d int) {
 	m.Cursor = (m.Cursor + d + n) % n
 }
 
-// view renders the prompt and up to maxShown matches; the cursor line is marked.
+// view renders the prompt and a window of maxShown matches that scrolls to keep
+// the cursor line (marked) visible.
 func (m *Model) view(title string) []string {
 	lines := []string{fmt.Sprintf("%s > %s", title, m.Query)}
 	ms := m.Matches()
-	for i, it := range ms {
-		if i == maxShown {
-			lines = append(lines, fmt.Sprintf("  … %d more", len(ms)-maxShown))
-			break
-		}
+	start := 0
+	if m.Cursor >= maxShown {
+		start = m.Cursor - maxShown + 1
+	}
+	end := min(start+maxShown, len(ms))
+	if start > 0 {
+		lines = append(lines, fmt.Sprintf("  … %d above", start))
+	}
+	for i := start; i < end; i++ {
 		mark := "  "
 		if i == m.Cursor {
 			mark = "▶ "
 		}
-		lines = append(lines, mark+it)
+		lines = append(lines, mark+ms[i])
+	}
+	if end < len(ms) {
+		lines = append(lines, fmt.Sprintf("  … %d more", len(ms)-end))
 	}
 	if len(ms) == 0 {
 		lines = append(lines, "  (no match)")
