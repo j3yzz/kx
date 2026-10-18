@@ -21,6 +21,16 @@ type Config struct {
 	// ClipboardClearSeconds is the delay before --copy clears the clipboard.
 	// Unset means 30; 0 means never clear.
 	ClipboardClearSeconds *int `json:"clipboardClearSeconds"`
+	// Aliases give short names to apps: `kx exec pay` finds app "payments-web"
+	// in its default namespace.
+	Aliases map[string]Alias `json:"aliases"`
+}
+
+// Alias maps a short name to an app and, optionally, a default namespace
+// (an explicit -n still wins).
+type Alias struct {
+	App       string `json:"app"`
+	Namespace string `json:"namespace"`
 }
 
 // Path returns the default config file location.
@@ -48,6 +58,11 @@ func Load(path string) (*Config, error) {
 	}
 	if s := c.ClipboardClearSeconds; s != nil && *s < 0 {
 		return nil, fmt.Errorf("%s: clipboardClearSeconds must be >= 0", path)
+	}
+	for name, a := range c.Aliases {
+		if a.App == "" {
+			return nil, fmt.Errorf("%s: alias %q needs an app", path, name)
+		}
 	}
 	return &c, nil
 }

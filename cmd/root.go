@@ -102,16 +102,40 @@ func Execute() {
 
 // newClient builds the kube client from the global flags and announces
 // context/namespace on stderr when they differ from the defaults.
-func newClient() (*kube.Client, error) {
+func newClient() (*kube.Client, error) { return newClientIn("") }
+
+// newAppClient is newClient for commands that take an app name: it expands a
+// configured alias and uses the alias's namespace unless -n was given. It
+// returns the real app name to resolve.
+func newAppClient(name string) (*kube.Client, string, error) {
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil, "", err
+	}
+	a, ok := cfg.Aliases[name]
+	if !ok {
+		c, err := newClientIn("")
+		return c, name, err
+	}
+	c, err := newClientIn(a.Namespace)
+	return c, a.App, err
+}
+
+// newClientIn builds the client; defaultNS applies only when -n is not given.
+func newClientIn(defaultNS string) (*kube.Client, error) {
 	// Fail on a bad config before doing anything else: a typo in prodContexts
 	// must not quietly disable the prod guard.
 	if _, err := loadConfig(); err != nil {
 		return nil, err
 	}
+	ns := Global.Namespace
+	if ns == "" {
+		ns = defaultNS
+	}
 	c, err := kube.New(kube.Options{
 		Kubeconfig: Global.Kubeconfig,
 		Context:    Global.Context,
-		Namespace:  Global.Namespace,
+		Namespace:  ns,
 	})
 	if err != nil {
 		return nil, err

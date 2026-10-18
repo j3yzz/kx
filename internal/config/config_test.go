@@ -43,3 +43,16 @@ func TestLoadRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestAliases(t *testing.T) {
+	c, err := Load(write(t, "aliases:\n  pay:\n    app: payments-web\n    namespace: payments-stg\n  db:\n    app: mysql\n"))
+	if err != nil || c.Aliases["pay"] != (Alias{"payments-web", "payments-stg"}) || c.Aliases["db"].Namespace != "" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	if _, err := Load(write(t, "aliases:\n  x:\n    namespace: n\n")); err == nil {
+		t.Error("alias without app accepted")
+	}
+	if _, err := Load(write(t, "aliases:\n  x:\n    app: a\n    namspace: n\n")); err == nil {
+		t.Error("typo inside alias accepted")
+	}
+}

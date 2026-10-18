@@ -33,14 +33,14 @@ Read-only: kx never writes Secrets.`,
   kx secrets payments -o env --reveal > .env`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := newClient()
+		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err
 		}
-		if err := guardReveal(c, args[0]); err != nil {
+		if err := guardReveal(c, app); err != nil {
 			return err
 		}
-		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, args[0], secretsOpts.selector)
+		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, app, secretsOpts.selector)
 		if err != nil {
 			return err
 		}
@@ -54,7 +54,7 @@ Read-only: kx never writes Secrets.`,
 			return err
 		}
 		if len(entries) == 0 {
-			fmt.Fprintf(os.Stderr, "app %s uses no Secrets\n", args[0])
+			fmt.Fprintf(os.Stderr, "app %s uses no Secrets\n", app)
 		}
 		return outputSecrets(cmd, entries)
 	},

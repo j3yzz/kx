@@ -300,3 +300,46 @@ func TestForwardDefaultPort(t *testing.T) {
 		t.Fatal("default port did not serve 200")
 	}
 }
+
+// home returns an env with HOME pointing at a dir holding the given kx config.
+func home(t *testing.T, cfg string) []string {
+	t.Helper()
+	h := t.TempDir()
+	dir := filepath.Join(h, ".config", "kx")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"HOME=" + h}
+}
+
+// runNoNS is run without the default -n, to test namespace defaults.
+func runNoNS(t *testing.T, env []string, args ...string) (string, string, int) {
+	t.Helper()
+	cmd := exec.Command(kx, append([]string{"--kubeconfig", kubeconfig, "--context", kctx}, args...)...)
+	cmd.Env = append(os.Environ(), env...)
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err := cmd.Run()
+	code := 0
+	if ee, ok := err.(*exec.ExitError); ok {
+		code = ee.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	return out.String(), errb.String(), code
+}
+
+func TestAliasUsesAppAndNamespace(t *testing.T) {
+	env := home(t, "aliases:\n  al:\n    app: alpine\n    namespace: kx-test\n")
+	out, _, code := runNoNS(t, env, "exec", "al", "--", "echo", "hi")
+	if code != 0 || strings.TrimSpace(out) != "hi" {
+		t.Errorf("alias: %q code %d", out, code)
+	}
+	// explicit -n wins over the alias namespace
+	if _, _, code := runNoNS(t, env, "-n", "default", "exec", "al", "--", "echo", "hi"); code != 2 {
+		t.Errorf("-n should override alias namespace, code %d", code)
+	}
+}

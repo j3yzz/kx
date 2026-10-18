@@ -38,11 +38,11 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := newClient()
+		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err
 		}
-		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, args[0], execOpts.selector)
+		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, app, execOpts.selector)
 		if err != nil {
 			return err
 		}
@@ -54,7 +54,7 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 		if err != nil {
 			return err
 		}
-		if err := guardCheck(c, guard.Exec, args[0]+" ("+pod.Name+")"); err != nil {
+		if err := guardCheck(c, guard.Exec, app+" ("+pod.Name+")"); err != nil {
 			return err
 		}
 		if kube.IsTTY(os.Stderr) {

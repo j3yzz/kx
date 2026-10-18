@@ -31,11 +31,10 @@ Binds to 127.0.0.1 unless --address is given.`,
   kx forward web 8080 9090`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := newClient()
+		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err
 		}
-		app := args[0]
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
