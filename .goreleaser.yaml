@@ -23,13 +23,19 @@ checksum:
 changelog:
   disable: true
 
-# Needs a repo j3yzz/homebrew-kx and a HOMEBREW_TAP_TOKEN secret with write
-# access to it (the default GITHUB_TOKEN cannot push to another repo).
+release:
+  replace_existing_artifacts: true
+
+# Pushes the formula to j3yzz/homebrew-kx over SSH with a write deploy key
+# (secret HOMEBREW_TAP_DEPLOY_KEY; the workflow writes it to a file).
 brews:
   - repository:
       owner: j3yzz
       name: homebrew-kx
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: main
+      git:
+        url: git@github.com:j3yzz/homebrew-kx.git
+        private_key: "{{ .Env.HOMEBREW_TAP_KEY_PATH }}"
     homepage: https://github.com/j3yzz/kx
     description: Faster Kubernetes CLI - exec, forward and secrets by application name
     test: |

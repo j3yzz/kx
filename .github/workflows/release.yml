@@ -12,9 +12,15 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-go@v5
         with: {go-version-file: go.mod}
+      - name: Write tap deploy key
+        run: |
+          install -m 600 /dev/null "$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$TAP_KEY" > "$RUNNER_TEMP/tap_key"
+          echo "HOMEBREW_TAP_KEY_PATH=$RUNNER_TEMP/tap_key" >> "$GITHUB_ENV"
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
       - uses: goreleaser/goreleaser-action@v6
         with: {version: "~> v2", args: release --clean}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       - uses: rajatjindal/krew-release-bot@v0.0.47
