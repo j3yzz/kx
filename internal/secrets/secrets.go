@@ -207,11 +207,7 @@ func Render(w io.Writer, entries []Entry, format string, reveal bool) error {
 			if e.Missing {
 				continue
 			}
-			v := e.Display(reveal)
-			if strings.ContainsAny(v, " \t\n\"'#$\\") {
-				v = strconv.Quote(v)
-			}
-			fmt.Fprintf(w, "%s=%s\n", e.Key, v)
+			fmt.Fprintf(w, "%s=%s\n", e.Key, EnvQuote(e.Display(reveal)))
 		}
 		return nil
 	case "table":
@@ -245,4 +241,12 @@ func Single(entries []Entry) (Entry, error) {
 		return Entry{}, fmt.Errorf("no matching key to copy")
 	}
 	return *found, nil
+}
+
+// EnvQuote quotes v for a .env line when it contains characters that need it.
+func EnvQuote(v string) string {
+	if strings.ContainsAny(v, " \t\n\"'#$\\") {
+		return strconv.Quote(v)
+	}
+	return v
 }

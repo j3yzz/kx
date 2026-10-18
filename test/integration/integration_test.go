@@ -343,3 +343,75 @@ func TestAliasUsesAppAndNamespace(t *testing.T) {
 		t.Errorf("-n should override alias namespace, code %d", code)
 	}
 }
+
+func TestEnvSourcesAndMasking(t *testing.T) {
+	out, _, code := run(t, "", "env", "alpine")
+	if code != 0 || strings.Contains(out, secret) {
+		t.Fatalf("code %d, secret leaked or failed:\n%s", code, out)
+	}
+	for _, want := range []string{"LOG_LEVEL", "debug", "literal", "REGION", "configmap app-config/REGION", "DB_PASSWORD", "secret app-secret/password", "********"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if out, _, _ := run(t, "", "env", "alpine", "--reveal", "-o", "env"); !strings.Contains(out, "DB_PASSWORD="+secret) {
+		t.Errorf("--reveal missing value:\n%s", out)
+	}
+}
+
+func TestLogs(t *testing.T) {
+	out, _, code := run(t, "", "logs", "chatty", "--tail", "1")
+	if code != 0 || !regexp.MustCompile(`(?m)^\[chatty-\S+\] hello-from-chatty$`).MatchString(out) {
+		t.Errorf("code %d:\n%s", code, out)
+	}
+}
+
+// Follow keeps going across a pod replacement: lines from the new pod appear.
+func TestLogsFollowPicksUpNewPod(t *testing.T) {
+	cmd := kxCmd(nil, "logs", "chatty", "-f", "--tail", "1")
+	pr, pw := io.Pipe()
+	cmd.Stdout, cmd.Stderr = pw, pw
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cmd.Process.Signal(syscall.SIGINT); cmd.Wait(); pw.Close() }()
+
+	pods := make(chan string, 100)
+	go func() {
+		re := regexp.MustCompile(`^\[(chatty-\S+)\] hello-from-chatty`)
+		sc := bufio.NewScanner(pr)
+		for sc.Scan() {
+			if m := re.FindStringSubmatch(sc.Text()); m != nil {
+				pods <- m[1]
+			}
+		}
+		close(pods)
+	}()
+	next := func(not string) string {
+		deadline := time.After(120 * time.Second)
+		for {
+			select {
+			case p, ok := <-pods:
+				if !ok {
+					t.Fatal("kx logs exited")
+				}
+				if p != not {
+					return p
+				}
+			case <-deadline:
+				t.Fatalf("no log line from a pod other than %q", not)
+			}
+		}
+	}
+	first := next("")
+	c, err := kube.New(kube.Options{Kubeconfig: kubeconfig, Context: kctx, Namespace: ns})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CoreV1().Pods(ns).Delete(context.Background(), first, metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if second := next(first); second == first {
+		t.Fatal("same pod")
+	}
+}

@@ -12,6 +12,32 @@ stringData:
   password: s3cr3t-integration
   user: admin
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: kx-test
+data:
+  REGION: eu
+---
+# Logs a line per second: exercises kx logs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatty
+  namespace: kx-test
+spec:
+  selector:
+    matchLabels: {app: chatty}
+  template:
+    metadata:
+      labels: {app: chatty}
+    spec:
+      containers:
+        - name: main
+          image: alpine:3.20
+          command: [sh, -c, "while true; do echo hello-from-chatty; sleep 1; done"]
+---
 # No bash: exercises the sh fallback. Uses the Secret via env and a volume.
 apiVersion: apps/v1
 kind: Deployment
@@ -29,7 +55,11 @@ spec:
         - name: main
           image: alpine:3.20
           command: [sleep, infinity]
+          envFrom:
+            - configMapRef: {name: app-config}
           env:
+            - name: LOG_LEVEL
+              value: debug
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef: {name: app-secret, key: password}
