@@ -115,3 +115,7 @@ bash hack/kind-test.sh     # integration tests against a throwaway kind cluster 
 ```
 
 The integration suite refuses to run unless `KX_TEST_KUBECONFIG` points at a `kind-` context.
+
+## License
+
+[MIT](LICENSE)
