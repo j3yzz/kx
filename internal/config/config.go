@@ -24,6 +24,19 @@ type Config struct {
 	// Aliases give short names to apps: `kx exec pay` finds app "payments-web"
 	// in its default namespace.
 	Aliases map[string]Alias `json:"aliases"`
+	// Tunnels are saved `kx tunnel <name>` profiles.
+	Tunnels map[string]Tunnel `json:"tunnels"`
+}
+
+// Tunnel is a saved port-forward: app, ports ("3306" or "13306:3306"), an
+// optional namespace, and an optional local client command. In Client, {host}
+// and {port} (the first local port) are replaced; kx stops the tunnel when
+// the client exits.
+type Tunnel struct {
+	App       string   `json:"app"`
+	Namespace string   `json:"namespace"`
+	Ports     []string `json:"ports"`
+	Client    string   `json:"client"`
 }
 
 // Alias maps a short name to an app and, optionally, a default namespace
@@ -62,6 +75,11 @@ func Load(path string) (*Config, error) {
 	for name, a := range c.Aliases {
 		if a.App == "" {
 			return nil, fmt.Errorf("%s: alias %q needs an app", path, name)
+		}
+	}
+	for name, t := range c.Tunnels {
+		if t.App == "" || len(t.Ports) == 0 {
+			return nil, fmt.Errorf("%s: tunnel %q needs an app and at least one port", path, name)
 		}
 	}
 	return &c, nil

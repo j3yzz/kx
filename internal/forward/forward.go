@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,9 @@ type Forwarder struct {
 	Resolve func(ctx context.Context) (*corev1.Pod, error)
 	Out     io.Writer // "localhost:3306 -> app/pod:3306" lines
 	Err     io.Writer // reconnect events and forwarding errors
+	// OnFirstReady, if set, is called once when the tunnel first comes up.
+	OnFirstReady func()
+	once         sync.Once
 
 	// Test seams.
 	session func(ctx context.Context, pod *corev1.Pod) (ready bool, err error)
@@ -145,6 +149,11 @@ func (f *Forwarder) dial(ctx context.Context, pod *corev1.Pod) (bool, error) {
 		select {
 		case <-ready:
 			f.announce(pod)
+			f.once.Do(func() {
+				if f.OnFirstReady != nil {
+					f.OnFirstReady()
+				}
+			})
 		case <-sctx.Done():
 		}
 	}()

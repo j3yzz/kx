@@ -440,3 +440,33 @@ func TestDebugEphemeralContainer(t *testing.T) {
 		t.Error("no kx-debug- ephemeral container on the pod")
 	}
 }
+
+// A tunnel profile with a client: kx opens the tunnel, runs the client, closes
+// the tunnel and exits with the client's exit code.
+func TestTunnelProfileWithClient(t *testing.T) {
+	env := home(t, "tunnels:\n  w:\n    app: web\n    namespace: kx-test\n    ports: ['0:80']\n"+
+		"    client: curl -s -o /dev/null -w 'status=%{http_code}' http://{host}:{port}/\n")
+	out, errOut, code := runNoNS(t, env, "tunnel", "w")
+	if code != 0 || !strings.Contains(out, "status=200") {
+		t.Fatalf("code %d out %q err %q", code, out, errOut)
+	}
+	env = home(t, "tunnels:\n  w:\n    app: web\n    namespace: kx-test\n    ports: ['0:80']\n    client: exit 5\n")
+	if _, _, code := runNoNS(t, env, "tunnel", "w"); code != 5 {
+		t.Errorf("client exit code not propagated: %d", code)
+	}
+}
+
+func TestStatusAndConfigMaps(t *testing.T) {
+	out, _, code := run(t, "", "status", "alpine")
+	for _, want := range []string{"deployment/alpine", "1/1", "Running"} {
+		if code != 0 || !strings.Contains(out, want) {
+			t.Errorf("status lacks %q (code %d):\n%s", want, code, out)
+		}
+	}
+	out, _, code = run(t, "", "configmaps", "alpine")
+	for _, want := range []string{"app-config", "REGION", "env REGION", "eu"} {
+		if code != 0 || !strings.Contains(out, want) {
+			t.Errorf("configmaps lacks %q (code %d):\n%s", want, code, out)
+		}
+	}
+}

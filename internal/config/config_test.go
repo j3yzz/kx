@@ -56,3 +56,23 @@ func TestAliases(t *testing.T) {
 		t.Error("typo inside alias accepted")
 	}
 }
+
+func TestTunnels(t *testing.T) {
+	c, err := Load(write(t, "tunnels:\n  db:\n    app: mysql\n    namespace: data\n    ports: ['13306:3306']\n    client: mysql -h {host} -P {port}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := c.Tunnels["db"]
+	if got.App != "mysql" || got.Namespace != "data" || got.Ports[0] != "13306:3306" || got.Client == "" {
+		t.Fatalf("%+v", got)
+	}
+	for name, body := range map[string]string{
+		"no ports": "tunnels:\n  x:\n    app: a\n",
+		"no app":   "tunnels:\n  x:\n    ports: ['1']\n",
+		"typo":     "tunnels:\n  x:\n    app: a\n    ports: ['1']\n    clinet: y\n",
+	} {
+		if _, err := Load(write(t, body)); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

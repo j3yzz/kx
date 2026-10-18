@@ -8,6 +8,7 @@ import (
 
 	"github.com/j3yzz/kx/internal/forward"
 	"github.com/j3yzz/kx/internal/guard"
+	"github.com/j3yzz/kx/internal/kube"
 	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -35,51 +36,63 @@ Binds to 127.0.0.1 unless --address is given.`,
 		if err != nil {
 			return err
 		}
-		if err := requireAccess(c, getPods, listPods, forwardPods); err != nil {
-			return err
-		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
+		return startForward(cmd.Context(), c, app, forwardOpts.selector, forwardOpts.address, args[1:], nil)
+	},
+}
 
-		rs := resolver.New(c)
-		pick := func(ctx context.Context) (*corev1.Pod, error) {
-			pods, err := rs.Resolve(ctx, c.Namespace, app, forwardOpts.selector)
-			if err != nil {
-				return nil, err
-			}
-			return resolver.PickPod(pods, false, nil, nil)
-		}
+// startForward runs a reconnecting tunnel to app until interrupted. Shared by
+// `forward` and `tunnel`. onReady, if set, is called once the tunnel is up,
+// with the local ports and a stop() that closes the tunnel.
+func startForward(parent context.Context, c *kube.Client, app, selector, address string, portArgs []string,
+	onReady func(ports []forward.PortSpec, stop func())) error {
+	if err := requireAccess(c, getPods, listPods, forwardPods); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-		specs, err := forward.ParsePorts(args[1:])
+	rs := resolver.New(c)
+	pick := func(ctx context.Context) (*corev1.Pod, error) {
+		pods, err := rs.Resolve(ctx, c.Namespace, app, selector)
+		if err != nil {
+			return nil, err
+		}
+		return resolver.PickPod(pods, false, nil, nil)
+	}
+
+	specs, err := forward.ParsePorts(portArgs)
+	if err != nil {
+		return err
+	}
+	if len(specs) == 0 {
+		pod, err := pick(ctx)
 		if err != nil {
 			return err
 		}
-		if len(specs) == 0 {
-			pod, err := pick(ctx)
-			if err != nil {
-				return err
-			}
-			if specs, err = forward.DefaultPorts(pod); err != nil {
-				return err
-			}
-		}
-		if err := guardCheck(c, guard.Forward, app); err != nil {
+		if specs, err = forward.DefaultPorts(pod); err != nil {
 			return err
 		}
-		if specs, err = forward.AssignLocal(forwardOpts.address, specs, os.Stderr); err != nil {
-			return err
-		}
+	}
+	if err := guardCheck(c, guard.Forward, app); err != nil {
+		return err
+	}
+	if specs, err = forward.AssignLocal(address, specs, os.Stderr); err != nil {
+		return err
+	}
 
-		return (&forward.Forwarder{
-			Client:  c,
-			App:     app,
-			Ports:   specs,
-			Address: forwardOpts.address,
-			Resolve: pick,
-			Out:     os.Stdout,
-			Err:     os.Stderr,
-		}).Run(ctx)
-	},
+	f := &forward.Forwarder{
+		Client:  c,
+		App:     app,
+		Ports:   specs,
+		Address: address,
+		Resolve: pick,
+		Out:     os.Stdout,
+		Err:     os.Stderr,
+	}
+	if onReady != nil {
+		f.OnFirstReady = func() { onReady(specs, stop) }
+	}
+	return f.Run(ctx)
 }
 
 func init() {
