@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/j3yzz/kx/internal/kube"
@@ -124,8 +125,19 @@ func (f *Forwarder) dial(ctx context.Context, pod *corev1.Pod) (bool, error) {
 	for i, p := range f.Ports {
 		ports[i] = strconv.Itoa(p.Local) + ":" + strconv.Itoa(p.Remote)
 	}
+	// End the session as soon as the pod goes away; see podGone.
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var gone atomic.Bool
+	go func() {
+		if podGone(sctx, f.Client, pod.Namespace, pod.Name) {
+			gone.Store(true)
+			cancel()
+		}
+	}()
+
 	ready := make(chan struct{})
-	pf, err := portforward.NewOnAddressesWithContext(ctx, dialer, []string{f.Address}, ports, ready, io.Discard, f.Err)
+	pf, err := portforward.NewOnAddressesWithContext(sctx, dialer, []string{f.Address}, ports, ready, io.Discard, f.Err)
 	if err != nil {
 		return false, err
 	}
@@ -133,11 +145,14 @@ func (f *Forwarder) dial(ctx context.Context, pod *corev1.Pod) (bool, error) {
 		select {
 		case <-ready:
 			f.announce(pod)
-		case <-ctx.Done():
+		case <-sctx.Done():
 		}
 	}()
 
 	err = pf.ForwardPorts()
+	if gone.Load() {
+		err = fmt.Errorf("pod %s was deleted or is terminating", pod.Name)
+	}
 	select {
 	case <-ready:
 		return true, err

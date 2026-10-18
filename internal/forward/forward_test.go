@@ -12,6 +12,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestParsePorts(t *testing.T) {
@@ -144,5 +145,52 @@ func TestFatalBeforeFirstSuccess(t *testing.T) {
 	notFound := errors.New("app not found")
 	if err, _, _ := runScripted(t, []result{{false, nil}}, map[int]error{1: notFound}); err != notFound {
 		t.Fatalf("resolve error: %v", err)
+	}
+}
+
+func TestPodGone(t *testing.T) {
+	mk := func(name string) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "n", Name: name}}
+	}
+	cs := fake.NewSimpleClientset(mk("p"), mk("other"))
+
+	// Deleting a different pod must not end the session.
+	ctx, cancel := context.WithCancel(context.Background())
+	res := make(chan bool, 1)
+	go func() { res <- podGone(ctx, cs, "n", "p") }()
+	time.Sleep(100 * time.Millisecond)
+	cs.CoreV1().Pods("n").Delete(context.Background(), "other", metav1.DeleteOptions{})
+	select {
+	case <-res:
+		t.Fatal("ended by an unrelated pod")
+	case <-time.After(200 * time.Millisecond):
+	}
+	// Deleting ours does.
+	cs.CoreV1().Pods("n").Delete(context.Background(), "p", metav1.DeleteOptions{})
+	select {
+	case gone := <-res:
+		if !gone {
+			t.Fatal("deletion not detected")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("deletion not detected in time")
+	}
+	cancel()
+
+	// Terminating (deletionTimestamp set, e.g. graceful shutdown) counts too.
+	term := mk("t")
+	now := metav1.Now()
+	term.DeletionTimestamp = &now
+	cs = fake.NewSimpleClientset(term)
+	if !podGone(context.Background(), cs, "n", "t") {
+		t.Fatal("terminating pod not detected")
+	}
+
+	// ctx cancel returns false.
+	cs = fake.NewSimpleClientset(mk("live"))
+	ctx, cancel = context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if podGone(ctx, cs, "n", "live") {
+		t.Fatal("live pod reported gone")
 	}
 }
