@@ -116,7 +116,9 @@ func (r *Resolver) workloadSelector(ctx context.Context, ns, app string) (string
 	}
 	for _, get := range getters {
 		ls, err := get()
-		if apierrors.IsNotFound(err) {
+		// Not allowed to read this workload kind is not fatal: pods may still be
+		// readable, and the label lookup below only needs pods.
+		if apierrors.IsNotFound(err) || apierrors.IsForbidden(err) {
 			continue
 		}
 		if err != nil {

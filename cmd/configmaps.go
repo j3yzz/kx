@@ -28,6 +28,9 @@ volumes). Values are shown: ConfigMaps are configuration, not credentials.`,
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, listPods, getConfigMap); err != nil {
+			return err
+		}
 		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, app, cmOpts.selector)
 		if err != nil {
 			return err

@@ -25,6 +25,9 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, listPods); err != nil {
+			return err
+		}
 		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, app, statusOpts.selector)
 		if err != nil {
 			return err

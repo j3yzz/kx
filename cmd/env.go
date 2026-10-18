@@ -30,6 +30,9 @@ override envFrom, as Kubernetes does. Secret values are masked unless --reveal.`
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, listPods, getConfigMap, getSecrets); err != nil {
+			return err
+		}
 		if envOpts.reveal {
 			if err := guardCheck(c, guard.Reveal, app); err != nil {
 				return err

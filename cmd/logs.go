@@ -38,6 +38,9 @@ The container is -c, else the default-container annotation, else the first one.`
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, listPods, logPods); err != nil {
+			return err
+		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 

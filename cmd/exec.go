@@ -42,6 +42,9 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, getPods, listPods, execPods); err != nil {
+			return err
+		}
 		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, app, execOpts.selector)
 		if err != nil {
 			return err

@@ -37,6 +37,9 @@ Read-only: kx never writes Secrets.`,
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, listPods, getSecrets); err != nil {
+			return err
+		}
 		if err := guardReveal(c, app); err != nil {
 			return err
 		}
@@ -67,6 +70,9 @@ var secretsGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := newClient()
 		if err != nil {
+			return err
+		}
+		if err := requireAccess(c, getSecrets); err != nil {
 			return err
 		}
 		if err := guardReveal(c, args[0]); err != nil {

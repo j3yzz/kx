@@ -35,6 +35,9 @@ Binds to 127.0.0.1 unless --address is given.`,
 		if err != nil {
 			return err
 		}
+		if err := requireAccess(c, getPods, listPods, forwardPods); err != nil {
+			return err
+		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
