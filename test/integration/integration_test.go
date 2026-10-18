@@ -491,3 +491,14 @@ func TestCpRoundTrip(t *testing.T) {
 		t.Fatalf("downloaded %q", b)
 	}
 }
+
+func TestRunAll(t *testing.T) {
+	out, _, code := run(t, "", "run-all", "alpine", "--", "echo", "hi")
+	if code != 0 || !strings.Contains(out, " | hi\n") {
+		t.Fatalf("code %d out %q", code, out)
+	}
+	_, errOut, code := run(t, "", "run-all", "alpine", "--", "sh", "-c", "exit 4")
+	if code != 1 || !strings.Contains(errOut, "failed in 1 of 1 pods") {
+		t.Fatalf("code %d err %q", code, errOut)
+	}
+}
