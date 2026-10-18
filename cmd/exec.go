@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -28,15 +29,7 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 	Example: `  kx exec payments
   kx exec payments -n prod -- ls /app
   kx exec payments -c sidecar --pick`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return errors.New("app name required")
-		}
-		if d := cmd.ArgsLenAtDash(); (d == -1 && len(args) != 1) || (d != -1 && d != 1) {
-			return errors.New("expected: kx exec <app> [-- cmd...]; put the command after --")
-		}
-		return nil
-	},
+	Args: appThenCommand,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, app, err := newAppClient(args[0])
 		if err != nil {
@@ -64,13 +57,30 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 			fmt.Fprintf(os.Stderr, "kx: pod %s, container %s\n", pod.Name, container)
 		}
 
-		err = kxexec.Run(cmd.Context(), c, kxexec.Target{Namespace: pod.Namespace, Pod: pod.Name, Container: container}, args[1:])
-		var ee utilexec.ExitError
-		if errors.As(err, &ee) {
-			return &CodeError{Code: ee.ExitStatus()} // silent: the remote command already said what it had to
-		}
-		return kube.WrapError(err)
+		return runInPod(cmd.Context(), c, kxexec.Target{Namespace: pod.Namespace, Pod: pod.Name, Container: container}, args[1:])
 	},
+}
+
+// appThenCommand validates "<app> [-- cmd...]" arguments.
+func appThenCommand(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return errors.New("app name required")
+	}
+	if d := cmd.ArgsLenAtDash(); (d == -1 && len(args) != 1) || (d != -1 && d != 1) {
+		return fmt.Errorf("expected: kx %s <app> [-- cmd...]; put the command after --", cmd.Name())
+	}
+	return nil
+}
+
+// runInPod runs command in the target and maps a remote non-zero exit to kx's
+// exit code, silently: the remote command already said what it had to.
+func runInPod(ctx context.Context, c *kube.Client, t kxexec.Target, command []string) error {
+	err := kxexec.Run(ctx, c, t, command)
+	var ee utilexec.ExitError
+	if errors.As(err, &ee) {
+		return &CodeError{Code: ee.ExitStatus()}
+	}
+	return kube.WrapError(err)
 }
 
 func init() {

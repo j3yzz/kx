@@ -415,3 +415,28 @@ func TestLogsFollowPicksUpNewPod(t *testing.T) {
 		t.Fatal("same pod")
 	}
 }
+
+// debug adds an ephemeral container and runs a command in it.
+func TestDebugEphemeralContainer(t *testing.T) {
+	out, errOut, code := run(t, "", "debug", "alpine", "--image", "alpine:3.20", "--", "echo", "hi-from-debug")
+	if code != 0 || strings.TrimSpace(out) != "hi-from-debug" {
+		t.Fatalf("code %d out %q err %q", code, out, errOut)
+	}
+	c, err := kube.New(kube.Options{Kubeconfig: kubeconfig, Context: kctx, Namespace: ns})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pods, err := c.CoreV1().Pods(ns).List(context.Background(), metav1.ListOptions{LabelSelector: "app=alpine"})
+	if err != nil || len(pods.Items) == 0 {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range pods.Items {
+		for _, e := range p.Spec.EphemeralContainers {
+			found = found || strings.HasPrefix(e.Name, "kx-debug-")
+		}
+	}
+	if !found {
+		t.Error("no kx-debug- ephemeral container on the pod")
+	}
+}

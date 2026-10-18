@@ -53,6 +53,7 @@ var (
 	execPods     = rbac.Req{Verb: "create", Resource: "pods", Subresource: "exec"}
 	forwardPods  = rbac.Req{Verb: "create", Resource: "pods", Subresource: "portforward"}
 	logPods      = rbac.Req{Verb: "get", Resource: "pods", Subresource: "log"}
+	ephemeral    = rbac.Req{Verb: "update", Resource: "pods", Subresource: "ephemeralcontainers"}
 	getSecrets   = rbac.Req{Verb: "get", Resource: "secrets"}
 	getConfigMap = rbac.Req{Verb: "get", Resource: "configmaps"}
 )
