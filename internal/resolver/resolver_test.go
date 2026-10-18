@@ -57,6 +57,8 @@ func TestResolve(t *testing.T) {
 		pod("default", "cache-1", time.Hour, corev1.PodRunning, true, map[string]string{"app": "cache"}),
 		pod("payments-stg", "payments-x", time.Hour, corev1.PodRunning, true, map[string]string{"app": "payments"}),
 		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "payments-prod", Name: "payments"}},
+		pod("default", "rel-web-1", time.Hour, corev1.PodRunning, true, map[string]string{"app.kubernetes.io/instance": "rel", "app.kubernetes.io/name": "frontend"}),
+		pod("default", "rel-worker-1", time.Hour, corev1.PodRunning, true, map[string]string{"app.kubernetes.io/instance": "rel", "app.kubernetes.io/name": "worker"}),
 		pod("default", "other", time.Hour, corev1.PodRunning, true, map[string]string{"app": "other"}),
 	}...)
 	r := New(cs)
@@ -68,6 +70,7 @@ func TestResolve(t *testing.T) {
 		{"web", "", "web-1"},                          // app.kubernetes.io/name
 		{"cache", "", "cache-1"},                      // app label
 		{"whatever", "app=other", "other"},            // -l override
+		{"rel", "", "rel-web-1,rel-worker-1"},         // Helm release via app.kubernetes.io/instance
 	}
 	for _, c := range ok {
 		got, err := r.Resolve(ctx, "default", c.app, c.sel)
@@ -151,5 +154,25 @@ func TestPickContainer(t *testing.T) {
 		if (err != nil) != c.fail || got != c.want {
 			t.Errorf("%s: got %q err %v", c.name, got, err)
 		}
+	}
+}
+
+func TestSeveralComponents(t *testing.T) {
+	web := *pod("n", "web-1", time.Minute, corev1.PodRunning, true, map[string]string{componentLabel: "web"})
+	web2 := *pod("n", "web-0", time.Hour, corev1.PodRunning, true, map[string]string{componentLabel: "web"})
+	wk := *pod("n", "wk-1", 2*time.Minute, corev1.PodRunning, true, map[string]string{componentLabel: "worker"})
+	pods := []corev1.Pod{web, wk, web2}
+
+	if _, err := PickPod(pods, false, nil, nil); err == nil || !strings.Contains(err.Error(), "web, worker") {
+		t.Fatalf("want components error, got %v", err)
+	}
+	if got, err := PickPod([]corev1.Pod{web, web2}, false, nil, nil); err != nil || got.Name != "web-1" {
+		t.Fatalf("single component: %v %v", got, err)
+	}
+	if got, err := PickPod(pods, true, strings.NewReader("2\n"), &bytes.Buffer{}); err != nil || got.Name != "wk-1" {
+		t.Fatalf("--pick should bypass: %v %v", got, err)
+	}
+	if rep := Representatives(pods); names(rep) != "web-1,wk-1" {
+		t.Fatalf("representatives: %s", names(rep))
 	}
 }

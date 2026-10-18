@@ -39,8 +39,12 @@ Read-only: kx never writes Secrets.`,
 		if err != nil {
 			return err
 		}
-		// All pods of an app share one spec; the newest is enough.
-		entries, err := secrets.Collect(cmd.Context(), c, c.Namespace, secrets.Walk(&pods[0]))
+		// Pods of one component share a spec; walk the newest of each.
+		var refs []secrets.Ref
+		for _, p := range resolver.Representatives(pods) {
+			refs = append(refs, secrets.Walk(&p)...)
+		}
+		entries, err := secrets.Collect(cmd.Context(), c, c.Namespace, refs)
 		if err != nil {
 			return err
 		}

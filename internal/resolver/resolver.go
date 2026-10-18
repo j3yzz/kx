@@ -31,7 +31,11 @@ func notFoundf(format string, a ...any) error { return notFoundError(fmt.Sprintf
 
 const defaultContainerAnnotation = "kubectl.kubernetes.io/default-container"
 
-var appLabels = []string{"app.kubernetes.io/name", "app"}
+// appLabels are tried in order. "instance" is the Helm release name, which is
+// what people call the app when "name" is only the component (web, worker).
+var appLabels = []string{"app.kubernetes.io/name", "app", "app.kubernetes.io/instance"}
+
+const componentLabel = "app.kubernetes.io/name"
 
 type Resolver struct{ cs kubernetes.Interface }
 
@@ -39,7 +43,8 @@ func New(cs kubernetes.Interface) *Resolver { return &Resolver{cs} }
 
 // Resolve returns the pods of app in ns, newest first. Lookup order: the
 // -l selector if given; else a Deployment, StatefulSet or DaemonSet named app
-// (using its selector); else pods labelled app.kubernetes.io/name or app.
+// (using its selector); else pods labelled app.kubernetes.io/name, app or
+// app.kubernetes.io/instance.
 func (r *Resolver) Resolve(ctx context.Context, ns, app, selector string) ([]corev1.Pod, error) {
 	if selector != "" {
 		pods, err := r.pods(ctx, ns, selector)
@@ -191,6 +196,9 @@ func PickPod(pods []corev1.Pod, pick bool, in io.Reader, out io.Writer) (*corev1
 		}
 		return &pods[i], nil
 	}
+	if c := components(pods); len(c) > 1 {
+		return nil, fmt.Errorf("app has several components (%s); use --pick to choose a pod or -l to narrow", strings.Join(c, ", "))
+	}
 	var running *corev1.Pod
 	for i := range pods {
 		p := &pods[i]
@@ -286,4 +294,35 @@ func statusList(pods []corev1.Pod) string {
 		s[i] = pods[i].Name + "=" + podStatus(&pods[i])
 	}
 	return strings.Join(s, ", ")
+}
+
+// components lists the distinct app.kubernetes.io/name values of pods, sorted.
+func components(pods []corev1.Pod) []string {
+	set := map[string]bool{}
+	for _, p := range pods {
+		if c := p.Labels[componentLabel]; c != "" {
+			set[c] = true
+		}
+	}
+	out := make([]string, 0, len(set))
+	for c := range set {
+		out = append(out, c)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Representatives returns the newest pod of each component. Pods of one
+// component share a spec, so this is enough to inspect an app that has several.
+func Representatives(pods []corev1.Pod) []corev1.Pod {
+	seen := map[string]bool{}
+	var out []corev1.Pod
+	for _, p := range pods { // newest first
+		c := p.Labels[componentLabel]
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, p)
+		}
+	}
+	return out
 }
