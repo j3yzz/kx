@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/j3yzz/kx/internal/kube"
+	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -83,6 +84,8 @@ func Execute() {
 		code = ce.Code
 	} else if errors.Is(err, kube.ErrDenied) {
 		code = ExitAccessDenied
+	} else if errors.Is(err, resolver.ErrNotFound) {
+		code = ExitAppNotFound
 	}
 	if msg := err.Error(); msg != "" {
 		fmt.Fprintln(os.Stderr, "kx:", msg)
