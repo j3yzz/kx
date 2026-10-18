@@ -24,6 +24,27 @@ const (
 	Scale   Action = "scale"
 )
 
+// Verb is a short stable name for logs ("exec", "copy-out").
+func (a Action) Verb() string {
+	switch a {
+	case Exec:
+		return "exec"
+	case Forward:
+		return "forward"
+	case Reveal:
+		return "reveal"
+	case CopyOut:
+		return "copy-out"
+	case CopyIn:
+		return "copy-in"
+	case Restart:
+		return "restart"
+	case Scale:
+		return "scale"
+	}
+	return string(a)
+}
+
 // ErrDeclined means the user answered no at the confirmation prompt.
 var ErrDeclined = errors.New("cancelled")
 

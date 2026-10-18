@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
+	"github.com/j3yzz/kx/internal/audit"
 	"github.com/j3yzz/kx/internal/config"
 	"github.com/j3yzz/kx/internal/guard"
 	"github.com/j3yzz/kx/internal/kube"
@@ -43,7 +45,26 @@ func guardCheck(c *kube.Client, a guard.Action, target string) error {
 		In:           os.Stdin,
 		Out:          os.Stderr,
 	}
-	return g.Check(c.Context, c.Namespace, a, target)
+	err = g.Check(c.Context, c.Namespace, a, target)
+	if cfg.AuditEnabled() {
+		outcome := "allowed"
+		if err != nil {
+			outcome = "declined"
+		}
+		writeAudit(c, a, target, outcome)
+	}
+	return err
+}
+
+// writeAudit records the action; a failure to write warns but never blocks.
+func writeAudit(c *kube.Client, a guard.Action, target, outcome string) {
+	p, err := audit.Path()
+	if err == nil {
+		err = audit.Append(p, audit.Entry{Context: c.Context, Namespace: c.Namespace, Action: a.Verb(), Target: target, Outcome: outcome})
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "kx: warning: audit log not written: %v\n", err)
+	}
 }
 
 // Permissions the commands need; checked up front by requireAccess.

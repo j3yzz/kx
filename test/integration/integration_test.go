@@ -33,7 +33,7 @@ const (
 	secret = "s3cr3t-integration"
 )
 
-var kx, kubeconfig string
+var kx, kubeconfig, stateDir string
 
 func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KX_TEST_KUBECONFIG")
@@ -52,6 +52,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	kx = filepath.Join(dir, "kx")
+	stateDir = filepath.Join(dir, "state")
 	build := exec.Command("go", "build", "-o", kx, "github.com/j3yzz/kx")
 	if out, err := build.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build failed: %v\n%s", err, out)
@@ -65,7 +66,8 @@ func TestMain(m *testing.M) {
 func kxCmd(env []string, args ...string) *exec.Cmd {
 	full := append([]string{"--kubeconfig", kubeconfig, "--context", kctx, "-n", ns}, args...)
 	cmd := exec.Command(kx, full...)
-	cmd.Env = append(os.Environ(), env...)
+	// Keep test audit entries out of the developer's real ~/.local/state.
+	cmd.Env = append(os.Environ(), append([]string{"XDG_STATE_HOME=" + stateDir}, env...)...)
 	return cmd
 }
 
@@ -514,5 +516,25 @@ func TestRestartAndScale(t *testing.T) {
 	}
 	if _, _, code = run(t, "", "restart", "no-such-app"); code != 2 {
 		t.Fatalf("missing app: code %d", code)
+	}
+}
+
+func TestAuditLog(t *testing.T) {
+	state := t.TempDir()
+	env := []string{"XDG_STATE_HOME=" + state}
+	if _, _, code := runEnv(t, env, "", "exec", "alpine", "--", "true"); code != 0 {
+		t.Fatalf("exec code %d", code)
+	}
+	b, err := os.ReadFile(filepath.Join(state, "kx", "audit.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"action":"exec"`, `"context":"` + kctx + `"`, `"outcome":"allowed"`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("audit log %q lacks %s", b, want)
+		}
+	}
+	if strings.Contains(string(b), secret) {
+		t.Error("secret value in audit log")
 	}
 }

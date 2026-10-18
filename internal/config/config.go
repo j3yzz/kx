@@ -24,6 +24,8 @@ type Config struct {
 	// Aliases give short names to apps: `kx exec pay` finds app "payments-web"
 	// in its default namespace.
 	Aliases map[string]Alias `json:"aliases"`
+	// AuditLog set to false turns the audit log off (on by default).
+	AuditLog *bool `json:"auditLog"`
 	// Tunnels are saved `kx tunnel <name>` profiles.
 	Tunnels map[string]Tunnel `json:"tunnels"`
 }
@@ -92,3 +94,6 @@ func (c *Config) ClipboardClear() time.Duration {
 	}
 	return time.Duration(*c.ClipboardClearSeconds) * time.Second
 }
+
+// AuditEnabled reports whether sensitive actions are written to the audit log.
+func (c *Config) AuditEnabled() bool { return c.AuditLog == nil || *c.AuditLog }
