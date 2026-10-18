@@ -131,6 +131,58 @@ func (r *Resolver) workloadSelector(ctx context.Context, ns, app string) (string
 	return "", false, nil
 }
 
+// Apps lists names a user can pass to Resolve in ns: workload names and Helm
+// release names (app.kubernetes.io/instance). Sorted; used for completion.
+func (r *Resolver) Apps(ctx context.Context, ns string) ([]string, error) {
+	set := map[string]bool{}
+	var firstErr error
+	note := func(err error) {
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	apps := r.cs.AppsV1()
+	if l, err := apps.Deployments(ns).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, o := range l.Items {
+			set[o.Name] = true
+		}
+	} else {
+		note(err)
+	}
+	if l, err := apps.StatefulSets(ns).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, o := range l.Items {
+			set[o.Name] = true
+		}
+	} else {
+		note(err)
+	}
+	if l, err := apps.DaemonSets(ns).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, o := range l.Items {
+			set[o.Name] = true
+		}
+	} else {
+		note(err)
+	}
+	if l, err := r.cs.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, p := range l.Items {
+			if v := p.Labels["app.kubernetes.io/instance"]; v != "" {
+				set[v] = true
+			}
+		}
+	} else {
+		note(err)
+	}
+	if len(set) == 0 && firstErr != nil {
+		return nil, kube.WrapError(firstErr)
+	}
+	out := make([]string, 0, len(set))
+	for n := range set {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
 // notFound builds the error, hinting at other namespaces that have the app.
 // Cluster-wide list failures (e.g. 403) just drop the hint.
 func (r *Resolver) notFound(ctx context.Context, ns, app string) error {

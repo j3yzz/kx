@@ -176,3 +176,17 @@ func TestSeveralComponents(t *testing.T) {
 		t.Fatalf("representatives: %s", names(rep))
 	}
 }
+
+func TestApps(t *testing.T) {
+	cs := fake.NewSimpleClientset(
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "n", Name: "payments"}},
+		&appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Namespace: "n", Name: "mysql"}},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "other", Name: "elsewhere"}},
+		pod("n", "p1", time.Hour, corev1.PodRunning, true, map[string]string{"app.kubernetes.io/instance": "rel"}),
+		pod("n", "p2", time.Hour, corev1.PodRunning, true, map[string]string{"app.kubernetes.io/instance": "rel"}),
+	)
+	got, err := New(cs).Apps(context.Background(), "n")
+	if err != nil || strings.Join(got, ",") != "mysql,payments,rel" {
+		t.Fatalf("got %v %v", got, err)
+	}
+}

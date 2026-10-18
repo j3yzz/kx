@@ -50,6 +50,9 @@ var rootCmd = &cobra.Command{
 	Long: `kx finds pods by application name (Deployment/StatefulSet name or the
 app.kubernetes.io/name and app labels), so you never copy a pod name.
 
+Shell completion (app names, namespaces, contexts):
+  source <(kx completion zsh)      # or bash; fish: kx completion fish | source
+
 Exit codes:
   0  success
   1  general error
@@ -73,6 +76,7 @@ func init() {
 	f.StringVarP(&Global.Output, "output", "o", "table", "output format: table|json (secrets also: env)")
 	f.BoolVarP(&Global.Yes, "yes", "y", false, "confirm prod-context prompts in advance")
 	f.BoolVar(&Global.NoColor, "no-color", false, "disable colored output")
+	registerFlagCompletions()
 }
 
 // Execute runs the root command and exits with the matching code.

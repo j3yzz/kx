@@ -84,3 +84,10 @@ func TestWrapError(t *testing.T) {
 		t.Fatal("non-403 changed")
 	}
 }
+
+func TestContexts(t *testing.T) {
+	got, err := Contexts(write(t))
+	if err != nil || strings.Join(got, ",") != "prod,stg" {
+		t.Fatalf("got %v %v", got, err)
+	}
+}

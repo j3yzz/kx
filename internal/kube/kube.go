@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"golang.org/x/term"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -73,6 +74,22 @@ func New(o Options) (*Client, error) {
 		Namespace:  ns,
 		NonDefault: ctxName != raw.CurrentContext || ns != defaultNS,
 	}, nil
+}
+
+// Contexts lists the context names in the kubeconfig, sorted.
+func Contexts(kubeconfig string) ([]string, error) {
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	rules.ExplicitPath = kubeconfig
+	cfg, err := rules.Load()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(cfg.Contexts))
+	for n := range cfg.Contexts {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // Announce prints "-> context/namespace" to w when kx is off the defaults.
