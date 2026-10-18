@@ -41,6 +41,7 @@ var Global struct {
 	Kubeconfig string
 	Output     string
 	NoColor    bool
+	Yes        bool
 }
 
 var rootCmd = &cobra.Command{
@@ -70,6 +71,7 @@ func init() {
 	f.StringVar(&Global.Context, "context", "", "kubeconfig context")
 	f.StringVar(&Global.Kubeconfig, "kubeconfig", "", "path to kubeconfig")
 	f.StringVarP(&Global.Output, "output", "o", "table", "output format: table|json (secrets also: env)")
+	f.BoolVarP(&Global.Yes, "yes", "y", false, "confirm prod-context prompts in advance")
 	f.BoolVar(&Global.NoColor, "no-color", false, "disable colored output")
 }
 
@@ -97,6 +99,11 @@ func Execute() {
 // newClient builds the kube client from the global flags and announces
 // context/namespace on stderr when they differ from the defaults.
 func newClient() (*kube.Client, error) {
+	// Fail on a bad config before doing anything else: a typo in prodContexts
+	// must not quietly disable the prod guard.
+	if _, err := loadConfig(); err != nil {
+		return nil, err
+	}
 	c, err := kube.New(kube.Options{
 		Kubeconfig: Global.Kubeconfig,
 		Context:    Global.Context,

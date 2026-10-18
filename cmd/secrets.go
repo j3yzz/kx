@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/j3yzz/kx/internal/guard"
+	"github.com/j3yzz/kx/internal/kube"
 	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/j3yzz/kx/internal/secrets"
 	"github.com/spf13/cobra"
@@ -35,6 +37,9 @@ Read-only: kx never writes Secrets.`,
 		if err != nil {
 			return err
 		}
+		if err := guardReveal(c, args[0]); err != nil {
+			return err
+		}
 		pods, err := resolver.New(c).Resolve(cmd.Context(), c.Namespace, args[0], secretsOpts.selector)
 		if err != nil {
 			return err
@@ -51,7 +56,7 @@ Read-only: kx never writes Secrets.`,
 		if len(entries) == 0 {
 			fmt.Fprintf(os.Stderr, "app %s uses no Secrets\n", args[0])
 		}
-		return outputSecrets(entries)
+		return outputSecrets(cmd, entries)
 	},
 }
 
@@ -64,28 +69,55 @@ var secretsGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if err := guardReveal(c, args[0]); err != nil {
+			return err
+		}
 		entries, err := secrets.Collect(cmd.Context(), c, c.Namespace,
 			[]secrets.Ref{{Secret: args[0], Consumer: "-"}})
 		if err != nil {
 			return err
 		}
-		return outputSecrets(entries)
+		return outputSecrets(cmd, entries)
 	},
 }
 
-func outputSecrets(entries []secrets.Entry) error {
+// guardReveal confirms in prod contexts, but only when values will be exposed.
+func guardReveal(c *kube.Client, target string) error {
+	if !secretsOpts.reveal && !secretsOpts.copy {
+		return nil
+	}
+	return guardCheck(c, guard.Reveal, target)
+}
+
+// clearAfter is --copy-clear if given, else the config value.
+func clearAfter(cmd *cobra.Command) (time.Duration, error) {
+	if cmd.Flags().Changed("copy-clear") {
+		return secretsOpts.clearAfter, nil
+	}
+	cfg, err := loadConfig()
+	if err != nil {
+		return 0, err
+	}
+	return cfg.ClipboardClear(), nil
+}
+
+func outputSecrets(cmd *cobra.Command, entries []secrets.Entry) error {
 	entries = secrets.FilterKey(entries, secretsOpts.key)
 	if secretsOpts.copy {
 		e, err := secrets.Single(entries)
 		if err != nil {
 			return err
 		}
-		if err := secrets.Copy(e.Value, secretsOpts.clearAfter); err != nil {
+		clear, err := clearAfter(cmd)
+		if err != nil {
+			return err
+		}
+		if err := secrets.Copy(e.Value, clear); err != nil {
 			return err
 		}
 		msg := fmt.Sprintf("copied %s/%s to clipboard", e.Secret, e.Key)
-		if secretsOpts.clearAfter > 0 {
-			msg += fmt.Sprintf(" (clears in %s)", secretsOpts.clearAfter)
+		if clear > 0 {
+			msg += fmt.Sprintf(" (clears in %s)", clear)
 		}
 		fmt.Fprintln(os.Stderr, msg)
 		return nil
@@ -98,7 +130,7 @@ func init() {
 	f.BoolVar(&secretsOpts.reveal, "reveal", false, "show decoded values instead of masking them")
 	f.StringVar(&secretsOpts.key, "key", "", "only this key")
 	f.BoolVar(&secretsOpts.copy, "copy", false, "copy one key's value to the clipboard (needs --key unless one key matches)")
-	f.DurationVar(&secretsOpts.clearAfter, "copy-clear", 30*time.Second, "clear the clipboard after this delay (0 to keep)")
+	f.DurationVar(&secretsOpts.clearAfter, "copy-clear", 30*time.Second, "clear the clipboard after this delay, 0 to keep (default: config clipboardClearSeconds, else 30s)")
 	secretsCmd.Flags().StringVarP(&secretsOpts.selector, "selector", "l", "", "label selector to find the app's pods")
 	secretsCmd.AddCommand(secretsGetCmd)
 	rootCmd.AddCommand(secretsCmd)

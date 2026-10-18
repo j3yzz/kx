@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/j3yzz/kx/internal/forward"
+	"github.com/j3yzz/kx/internal/guard"
 	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -59,6 +60,9 @@ Binds to 127.0.0.1 unless --address is given.`,
 			if specs, err = forward.DefaultPorts(pod); err != nil {
 				return err
 			}
+		}
+		if err := guardCheck(c, guard.Forward, app); err != nil {
+			return err
 		}
 		if specs, err = forward.AssignLocal(forwardOpts.address, specs, os.Stderr); err != nil {
 			return err

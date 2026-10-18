@@ -6,6 +6,7 @@ import (
 	"os"
 
 	kxexec "github.com/j3yzz/kx/internal/exec"
+	"github.com/j3yzz/kx/internal/guard"
 	"github.com/j3yzz/kx/internal/kube"
 	"github.com/j3yzz/kx/internal/resolver"
 	"github.com/spf13/cobra"
@@ -51,6 +52,9 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 		}
 		container, err := resolver.PickContainer(pod, execOpts.container, os.Stdin, os.Stderr)
 		if err != nil {
+			return err
+		}
+		if err := guardCheck(c, guard.Exec, args[0]+" ("+pod.Name+")"); err != nil {
 			return err
 		}
 		if kube.IsTTY(os.Stderr) {
