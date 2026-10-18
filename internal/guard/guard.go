@@ -18,6 +18,8 @@ const (
 	Exec    Action = "open a shell / run a command in"
 	Forward Action = "port-forward to"
 	Reveal  Action = "reveal Secret values of"
+	CopyOut Action = "copy files out of"
+	CopyIn  Action = "copy files into"
 )
 
 // ErrDeclined means the user answered no at the confirmation prompt.

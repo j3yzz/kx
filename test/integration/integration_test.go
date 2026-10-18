@@ -470,3 +470,24 @@ func TestStatusAndConfigMaps(t *testing.T) {
 		}
 	}
 }
+
+func TestCpRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "up.txt")
+	if err := os.WriteFile(src, []byte("payload-123"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, errOut, code := run(t, "", "cp", src, "alpine:/tmp/"); code != 0 {
+		t.Fatalf("upload: code %d: %s", code, errOut)
+	}
+	if out, _, code := run(t, "", "exec", "alpine", "--", "cat", "/tmp/up.txt"); code != 0 || out != "payload-123" {
+		t.Fatalf("remote file: %q code %d", out, code)
+	}
+	dst := filepath.Join(dir, "down.txt")
+	if _, errOut, code := run(t, "", "cp", "alpine:/tmp/up.txt", dst); code != 0 {
+		t.Fatalf("download: code %d: %s", code, errOut)
+	}
+	if b, _ := os.ReadFile(dst); string(b) != "payload-123" {
+		t.Fatalf("downloaded %q", b)
+	}
+}

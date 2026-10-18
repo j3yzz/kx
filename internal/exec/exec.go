@@ -4,6 +4,7 @@ package exec
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,26 +37,7 @@ func Run(ctx context.Context, c *kube.Client, t Target, command []string) error 
 	}
 	tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 
-	req := c.CoreV1().RESTClient().Post().
-		Resource("pods").Namespace(t.Namespace).Name(t.Pod).SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Container: t.Container,
-			Command:   command,
-			Stdin:     true,
-			Stdout:    true,
-			Stderr:    !tty, // a TTY merges stderr into stdout
-			TTY:       tty,
-		}, scheme.ParameterCodec)
-
-	spdy, err := remotecommand.NewSPDYExecutor(c.Config, "POST", req.URL())
-	if err != nil {
-		return err
-	}
-	ws, err := remotecommand.NewWebSocketExecutor(c.Config, "GET", req.URL().String())
-	if err != nil {
-		return err
-	}
-	ex, err := remotecommand.NewFallbackExecutor(ws, spdy, httpstream.IsUpgradeFailure)
+	ex, err := executor(c, t, command, true, !tty, tty)
 	if err != nil {
 		return err
 	}
@@ -76,6 +58,39 @@ func Run(ctx context.Context, c *kube.Client, t Target, command []string) error 
 	defer cancel()
 	opts.TerminalSizeQueue = newSizeQueue(ctx, os.Stdout)
 	return ex.StreamWithContext(ctx, opts)
+}
+
+// Stream runs command in t without a TTY, wired to the given streams (any may
+// be nil). Used for piping data, e.g. tar for kx cp.
+func Stream(ctx context.Context, c *kube.Client, t Target, command []string, in io.Reader, out, errOut io.Writer) error {
+	ex, err := executor(c, t, command, in != nil, errOut != nil, false)
+	if err != nil {
+		return err
+	}
+	return ex.StreamWithContext(ctx, remotecommand.StreamOptions{Stdin: in, Stdout: out, Stderr: errOut})
+}
+
+func executor(c *kube.Client, t Target, command []string, stdin, stderr, tty bool) (remotecommand.Executor, error) {
+	req := c.CoreV1().RESTClient().Post().
+		Resource("pods").Namespace(t.Namespace).Name(t.Pod).SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: t.Container,
+			Command:   command,
+			Stdin:     stdin,
+			Stdout:    true,
+			Stderr:    stderr, // a TTY merges stderr into stdout
+			TTY:       tty,
+		}, scheme.ParameterCodec)
+
+	spdy, err := remotecommand.NewSPDYExecutor(c.Config, "POST", req.URL())
+	if err != nil {
+		return nil, err
+	}
+	ws, err := remotecommand.NewWebSocketExecutor(c.Config, "GET", req.URL().String())
+	if err != nil {
+		return nil, err
+	}
+	return remotecommand.NewFallbackExecutor(ws, spdy, httpstream.IsUpgradeFailure)
 }
 
 // sizeQueue emits the current terminal size, then a new one on every SIGWINCH.
