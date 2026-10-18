@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/j3yzz/kx/internal/kube"
 	"github.com/spf13/cobra"
 )
 
@@ -80,9 +81,26 @@ func Execute() {
 	var ce *CodeError
 	if errors.As(err, &ce) {
 		code = ce.Code
+	} else if errors.Is(err, kube.ErrDenied) {
+		code = ExitAccessDenied
 	}
 	if msg := err.Error(); msg != "" {
 		fmt.Fprintln(os.Stderr, "kx:", msg)
 	}
 	os.Exit(code)
+}
+
+// newClient builds the kube client from the global flags and announces
+// context/namespace on stderr when they differ from the defaults.
+func newClient() (*kube.Client, error) {
+	c, err := kube.New(kube.Options{
+		Kubeconfig: Global.Kubeconfig,
+		Context:    Global.Context,
+		Namespace:  Global.Namespace,
+	})
+	if err != nil {
+		return nil, err
+	}
+	c.Announce(os.Stderr)
+	return c, nil
 }
