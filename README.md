@@ -16,9 +16,6 @@ kx talks to the Kubernetes API directly (client-go). It does not need the `kubec
 # Homebrew
 brew install j3yzz/kx/kx
 
-# krew (kubectl plugin)
-kubectl krew install kx
-
 # from source (Go 1.26+)
 go install github.com/j3yzz/kx@latest
 ```
