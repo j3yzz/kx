@@ -1,0 +1,36 @@
+version: 2
+
+before:
+  hooks:
+    - go test ./...
+
+builds:
+  - main: .
+    binary: kx
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X github.com/j3yzz/kx/cmd.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "kx_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+# Needs a repo j3yzz/homebrew-kx and a HOMEBREW_TAP_TOKEN secret with write
+# access to it (the default GITHUB_TOKEN cannot push to another repo).
+brews:
+  - repository:
+      owner: j3yzz
+      name: homebrew-kx
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/j3yzz/kx
+    description: Faster Kubernetes CLI - exec, forward and secrets by application name
+    test: |
+      assert_match "kx version", shell_output("#{bin}/kx --version")

@@ -45,9 +45,13 @@ var Global struct {
 	Yes        bool
 }
 
+// version is set at release time: -ldflags "-X github.com/j3yzz/kx/cmd.version=v1.0.0".
+var version = "dev"
+
 var rootCmd = &cobra.Command{
-	Use:   "kx",
-	Short: "Faster Kubernetes CLI: exec, forward and secrets by application name",
+	Use:     "kx",
+	Version: version,
+	Short:   "Faster Kubernetes CLI: exec, forward and secrets by application name",
 	Long: `kx finds pods by application name (Deployment/StatefulSet name or the
 app.kubernetes.io/name and app labels), so you never copy a pod name.
 

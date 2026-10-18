@@ -1,0 +1,28 @@
+# Template for krew-release-bot (rajatjindal/krew-release-bot), which fills in
+# the version, URIs and checksums on each release and opens the krew-index PR.
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: kx
+spec:
+  version: {{ .TagName }}
+  homepage: https://github.com/j3yzz/kx
+  shortDescription: Exec, port-forward and Secrets by application name
+  description: |
+    kx finds pods by application name, so you never copy a pod name. It gives
+    exec, forward, logs, secrets, cp and more, with a prod-context guard, masked
+    Secrets by default and an audit log. It talks to the API directly and does
+    not need the kubectl binary.
+  platforms:
+    - selector: {matchLabels: {os: darwin, arch: amd64}}
+      {{addURIAndSha "https://github.com/j3yzz/kx/releases/download/{{ .TagName }}/kx_{{ trimPrefix .TagName "v" }}_darwin_amd64.tar.gz" .TagName }}
+      bin: kx
+    - selector: {matchLabels: {os: darwin, arch: arm64}}
+      {{addURIAndSha "https://github.com/j3yzz/kx/releases/download/{{ .TagName }}/kx_{{ trimPrefix .TagName "v" }}_darwin_arm64.tar.gz" .TagName }}
+      bin: kx
+    - selector: {matchLabels: {os: linux, arch: amd64}}
+      {{addURIAndSha "https://github.com/j3yzz/kx/releases/download/{{ .TagName }}/kx_{{ trimPrefix .TagName "v" }}_linux_amd64.tar.gz" .TagName }}
+      bin: kx
+    - selector: {matchLabels: {os: linux, arch: arm64}}
+      {{addURIAndSha "https://github.com/j3yzz/kx/releases/download/{{ .TagName }}/kx_{{ trimPrefix .TagName "v" }}_linux_arm64.tar.gz" .TagName }}
+      bin: kx
