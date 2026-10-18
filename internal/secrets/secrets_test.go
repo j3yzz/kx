@@ -158,3 +158,67 @@ func TestFilterAndSingle(t *testing.T) {
 		t.Fatal("expected error for no match")
 	}
 }
+
+func TestDiff(t *testing.T) {
+	fp, err := NewFingerprinter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := func(secret, key, val string) Entry { return Entry{Secret: secret, Key: key, Value: []byte(val)} }
+	left := []Entry{e("db", "password", "same"), e("db", "user", "alice"), e("db", "host", "only-here"),
+		e("db", "password", "same"), // consumed twice: compared once
+		{Secret: "db", Key: "gone", Missing: true}}
+	right := []Entry{e("db", "password", "same"), e("db", "user", "bob"), e("db", "extra", "x")}
+
+	got := map[string]string{}
+	for _, r := range Diff(left, right, fp) {
+		got[r.Key] = r.Status
+	}
+	want := map[string]string{"password": Same, "user": Differs, "host": OnlyLeft, "extra": OnlyRight}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s: %s want %s", k, got[k], v)
+		}
+	}
+}
+
+// Values must never reach the output, in any format.
+func TestDiffNeverPrintsValues(t *testing.T) {
+	fp, _ := NewFingerprinter()
+	left := []Entry{{Secret: "db", Key: "k", Value: []byte(secretValue)}}
+	right := []Entry{{Secret: "db", Key: "k", Value: []byte("other-" + secretValue)}}
+	rows := Diff(left, right, fp)
+	for _, f := range []string{"table", "json"} {
+		var b bytes.Buffer
+		if err := RenderDiff(&b, rows, f, "a", "b"); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(b.String(), secretValue) {
+			t.Errorf("%s leaked a value:\n%s", f, b.String())
+		}
+	}
+	if rows[0].Status != Differs || len(rows[0].Left) != 8 {
+		t.Errorf("unexpected row %+v", rows[0])
+	}
+	// Fingerprints are per-run: another fingerprinter gives other values.
+	fp2, _ := NewFingerprinter()
+	if fp([]byte("x")) == fp2([]byte("x")) {
+		t.Error("fingerprints should differ between runs")
+	}
+}
+
+func TestDiffByKeyIgnoresSecretNames(t *testing.T) {
+	fp, _ := NewFingerprinter()
+	l := []Entry{{Secret: "app-env-stg", Key: "TOKEN", Value: []byte("v")}}
+	r := []Entry{{Secret: "app-env-prd", Key: "TOKEN", Value: []byte("v")}}
+	if rows := Diff(l, r, fp); len(rows) != 2 {
+		t.Fatalf("different names should not match: %+v", rows)
+	}
+	l[0].Secret, r[0].Secret = "", ""
+	if rows := Diff(l, r, fp); len(rows) != 1 || rows[0].Status != Same {
+		t.Fatalf("by key: %+v", rows)
+	}
+}
