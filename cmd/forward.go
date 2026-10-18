@@ -30,8 +30,12 @@ Binds to 127.0.0.1 unless --address is given.`,
 	Example: `  kx forward mysql 3306
   kx forward mysql 13306:3306
   kx forward web 8080 9090`,
-	Args: cobra.MinimumNArgs(1),
+	Args: orPick(cobra.MinimumNArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

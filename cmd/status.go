@@ -19,8 +19,12 @@ var statusCmd = &cobra.Command{
 	Short: "Health summary: replicas, restarts, last termination reason, recent events",
 	Example: `  kx status payments
   kx status payments -o json`,
-	Args: cobra.ExactArgs(1),
+	Args: orPick(cobra.ExactArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

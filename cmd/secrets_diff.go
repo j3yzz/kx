@@ -25,8 +25,12 @@ Values are never printed: only per-run fingerprints, equal when the values are e
 	Example: `  kx secrets diff payments -n payments-stg --to-namespace payments-prod
   kx secrets diff payments --context stg --to-context prod
   kx secrets diff pay-stage-web -n stg --to-namespace prd --to-app pay-prd-web`,
-	Args: cobra.ExactArgs(1),
+	Args: orPick(cobra.ExactArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		if secretsOpts.reveal || secretsOpts.copy {
 			return errors.New("diff never shows values; --reveal and --copy do not apply")
 		}

@@ -31,8 +31,12 @@ Read-only: kx never writes Secrets.`,
   kx secrets payments --reveal --key DB_PASSWORD
   kx secrets payments --key DB_PASSWORD --copy
   kx secrets payments -o env --reveal > .env`,
-	Args: cobra.ExactArgs(1),
+	Args: orPick(cobra.ExactArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

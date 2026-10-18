@@ -29,8 +29,12 @@ or sh if the container has no bash. The command's exit code becomes kx's exit co
 	Example: `  kx exec payments
   kx exec payments -n prod -- ls /app
   kx exec payments -c sidecar --pick`,
-	Args: appThenCommand,
+	Args: orPick(appThenCommand),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

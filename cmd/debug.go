@@ -28,8 +28,12 @@ container cannot be removed: it stays until the pod is replaced.`,
 	Example: `  kx debug payments
   kx debug payments --image nicolaka/netshoot
   kx debug payments -c app -- ps aux`,
-	Args: appThenCommand,
+	Args: orPick(appThenCommand),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

@@ -32,8 +32,12 @@ The container is -c, else the default-container annotation, else the first one.`
 	Example: `  kx logs payments
   kx logs payments -f --since 10m
   kx logs payments --previous --tail 200`,
-	Args: cobra.ExactArgs(1),
+	Args: orPick(cobra.ExactArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err

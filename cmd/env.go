@@ -24,8 +24,12 @@ override envFrom, as Kubernetes does. Secret values are masked unless --reveal.`
 	Example: `  kx env payments
   kx env payments -c sidecar -o json
   kx env payments --reveal -o env > .env`,
-	Args: cobra.ExactArgs(1),
+	Args: orPick(cobra.ExactArgs(1)),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		args, err := pickAppArg(cmd, args)
+		if err != nil {
+			return err
+		}
 		c, app, err := newAppClient(args[0])
 		if err != nil {
 			return err
